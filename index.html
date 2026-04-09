@@ -36,13 +36,91 @@
             max-height: 100%;
             display: block;
         }
+
+        #sound-prompt {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        #sound-prompt.hidden {
+            display: none;
+        }
+
+        .sound-button {
+            padding: 20px 40px;
+            font-size: 24px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .sound-button:active {
+            transform: scale(0.95);
+        }
+
+        #enable-sound {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        #enable-sound:hover {
+            background-color: #45a049;
+        }
+
+        .sound-text {
+            color: white;
+            font-size: 28px;
+            text-align: center;
+            padding: 20px;
+        }
     </style>
 </head>
 <body>
 
+<div id="sound-prompt">
+    <div class="sound-text">🔊 請先啟用聲音</div>
+    <button id="enable-sound" class="sound-button">啟用聲音</button>
+</div>
+
 <div id="game-container"></div>
 
 <script>
+let soundEnabled = false;
+
+// Enable sound on user interaction
+document.getElementById('enable-sound').addEventListener('click', function() {
+    soundEnabled = true;
+    document.getElementById('sound-prompt').classList.add('hidden');
+    
+    // Resume audio context on iOS
+    if (window.game && window.game.sound) {
+        window.game.sound.resume();
+    }
+});
+
+// Alternative: Try to enable sound on any user interaction
+document.addEventListener('touchstart', function enableSound() {
+    if (!soundEnabled) {
+        soundEnabled = true;
+        if (window.game && window.game.sound) {
+            window.game.sound.resume();
+        }
+        document.removeEventListener('touchstart', enableSound);
+    }
+}, false);
+
 const config = {
     type: Phaser.AUTO,
     parent: 'game-container',
@@ -61,10 +139,14 @@ const config = {
         touch: {
             target: window
         }
+    },
+    audio: {
+        disableWebAudio: false
     }
 };
 
 const game = new Phaser.Game(config);
+window.game = game;
 
 let locations = [
     { key: 'school', text: '學校', x: 200, y: 150 },
@@ -94,6 +176,9 @@ function preload() {
 }
 
 function create() {
+    // Resume audio context on iOS
+    this.sound.resume();
+
     // 1. Setup Background and Locations
     this.add.image(400, 300, 'bg').setAlpha(0.3);
     
@@ -140,7 +225,9 @@ function startNewTrial(scene) {
     currentTarget = Phaser.Utils.Array.GetRandom(locations);
     
     // Play Cantonese Voiceover: 「我要去 [Location]」
-    scene.sound.play(currentTarget.key + '_vo');
+    if (soundEnabled) {
+        scene.sound.play(currentTarget.key + '_vo');
+    }
     
     // Reset Character Position
     character.x = character.getData('startX');
@@ -161,7 +248,9 @@ function checkDrop(scene, char) {
     });
 
     if (matched) {
-        scene.sound.play('correct');
+        if (soundEnabled) {
+            scene.sound.play('correct');
+        }
         trialCount++;
         scoreText.setText(`進度: ${trialCount}/10`);
         
@@ -170,7 +259,9 @@ function checkDrop(scene, char) {
             startNewTrial(scene);
         });
     } else {
-        scene.sound.play('wrong');
+        if (soundEnabled) {
+            scene.sound.play('wrong');
+        }
         // Snap back to start
         scene.tweens.add({
             targets: char,
@@ -183,7 +274,9 @@ function checkDrop(scene, char) {
 }
 
 function showCongratulation(scene) {
-    scene.sound.play('congrats');
+    if (soundEnabled) {
+        scene.sound.play('congrats');
+    }
     let overlay = scene.add.rectangle(400, 300, 800, 600, 0x000000, 0.7);
     scene.add.text(400, 300, '你好棒！\n完成練習了！', { 
         fontSize: '56px', 
