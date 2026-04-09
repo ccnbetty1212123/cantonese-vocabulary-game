@@ -43,13 +43,13 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0, 0, 0, 0.95);
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 9999;
             flex-direction: column;
-            gap: 20px;
+            gap: 30px;
         }
 
         #sound-prompt.hidden {
@@ -57,13 +57,15 @@
         }
 
         .sound-button {
-            padding: 20px 40px;
-            font-size: 24px;
+            padding: 20px 60px;
+            font-size: 28px;
             border: none;
-            border-radius: 10px;
+            border-radius: 15px;
             cursor: pointer;
             font-weight: bold;
             transition: all 0.3s;
+            -webkit-appearance: none;
+            appearance: none;
         }
 
         .sound-button:active {
@@ -73,25 +75,27 @@
         #enable-sound {
             background-color: #4CAF50;
             color: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
         }
 
-        #enable-sound:hover {
+        #enable-sound:active {
             background-color: #45a049;
         }
 
         .sound-text {
             color: white;
-            font-size: 28px;
+            font-size: 32px;
             text-align: center;
             padding: 20px;
         }
 
         #debug-info {
-            color: #ccc;
-            font-size: 12px;
+            color: #aaa;
+            font-size: 16px;
             margin-top: 20px;
             text-align: center;
             max-width: 80%;
+            line-height: 1.6;
         }
     </style>
 </head>
@@ -99,70 +103,44 @@
 
 <div id="sound-prompt">
     <div class="sound-text">🔊 請先啟用聲音</div>
-    <button id="enable-sound" class="sound-button">啟用聲音</button>
-    <div id="debug-info">檢查: 音量是否打開 / Mute 開關是否關閉</div>
+    <button id="enable-sound" class="sound-button">點擊啟用</button>
+    <div id="debug-info">✓ 檢查音量是否打開<br>✓ Mute 開關是否關閉</div>
 </div>
 
 <div id="game-container"></div>
 
 <script>
 let soundEnabled = false;
-let audioContext = null;
+let gameCreated = false;
 
-// Create AudioContext for iOS
-function initAudioContext() {
-    if (!audioContext) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) {
-            audioContext = new AudioContext();
-            // Create a simple oscillator to wake up the audio system
-            const osc = audioContext.createOscillator();
-            const gain = audioContext.createGain();
-            gain.gain.value = 0; // Silent
-            osc.connect(gain);
-            gain.connect(audioContext.destination);
-            osc.start(0);
-            osc.stop(audioContext.currentTime + 0.001);
-        }
-    }
-}
-
-// Enable sound on user interaction
-document.getElementById('enable-sound').addEventListener('click', function() {
+// Enable sound on button click
+document.getElementById('enable-sound').addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Button clicked, enabling sound...');
+    
     soundEnabled = true;
     document.getElementById('sound-prompt').classList.add('hidden');
     
-    // Initialize audio context
-    initAudioContext();
-    
-    // Resume audio context
-    if (audioContext && audioContext.state === 'suspended') {
-        audioContext.resume().then(() => {
-            console.log('Audio context resumed');
-        });
-    }
-    
-    // Resume Phaser sound
+    // If game already exists, resume it
     if (window.game && window.game.sound) {
         window.game.sound.resume();
         window.game.sound.unlock();
     }
 });
 
-// Also enable on any touch
-document.addEventListener('touchend', function enableSound() {
+// Also enable on any touch if not already enabled
+document.addEventListener('touchstart', function() {
     if (!soundEnabled) {
         soundEnabled = true;
-        initAudioContext();
-        if (audioContext && audioContext.state === 'suspended') {
-            audioContext.resume();
-        }
+        console.log('Touch detected, enabling sound...');
+        document.getElementById('sound-prompt').classList.add('hidden');
         if (window.game && window.game.sound) {
             window.game.sound.resume();
             window.game.sound.unlock();
         }
     }
-}, false);
+}, { once: true });
 
 const config = {
     type: Phaser.AUTO,
@@ -184,8 +162,7 @@ const config = {
         }
     },
     audio: {
-        disableWebAudio: false,
-        context: audioContext
+        disableWebAudio: false
     }
 };
 
@@ -193,7 +170,7 @@ const game = new Phaser.Game(config);
 window.game = game;
 
 let locations = [
-    { key: 'school', text: '學校', x: 200, y: 150 },
+    { key: 'school', text: '��校', x: 200, y: 150 },
     { key: 'classroom', text: '課室', x: 600, y: 150 },
     { key: 'toilet', text: '廁所', x: 200, y: 450 },
     { key: 'kitchen', text: '廚房', x: 600, y: 450 }
@@ -201,9 +178,11 @@ let locations = [
 
 let character, currentTarget, trialCount = 0;
 let feedbackText, scoreText;
-let soundManager;
+let sceneInstance;
 
 function preload() {
+    console.log('Preloading assets...');
+    
     // Load Images
     this.load.image('bg', 'assets/bg.jpg');
     this.load.image('character', 'assets/student.png');
@@ -211,19 +190,21 @@ function preload() {
         this.load.image(loc.key, `assets/${loc.key}.jpg`);
     });
 
-    // Load Audio - Try multiple formats for compatibility
+    // Load Audio
     locations.forEach(loc => {
-        this.load.audio(loc.key + '_vo', ['assets/' + loc.key + '.mp3', 'assets/' + loc.key + '.m4a']);
+        this.load.audio(loc.key + '_vo', `assets/${loc.key}.mp3`);
     });
-    this.load.audio('correct', ['assets/correct.mp3', 'assets/correct.m4a']);
-    this.load.audio('wrong', ['assets/wrong.mp3', 'assets/wrong.m4a']);
-    this.load.audio('congrats', ['assets/congrats.mp3', 'assets/congrats.m4a']);
+    this.load.audio('correct', 'assets/correct.mp3');
+    this.load.audio('wrong', 'assets/wrong.mp3');
+    this.load.audio('congrats', 'assets/congrats.mp3');
 }
 
 function create() {
-    soundManager = this.sound;
+    console.log('Game scene created');
+    sceneInstance = this;
+    gameCreated = true;
     
-    // Unlock audio
+    // Unlock and resume audio
     this.sound.unlock();
     this.sound.resume();
 
@@ -260,7 +241,10 @@ function create() {
         checkDrop(this, gameObject);
     });
 
-    startNewTrial(this);
+    // Start game after a brief delay
+    this.time.delayedCall(500, () => {
+        startNewTrial(this);
+    });
 }
 
 function startNewTrial(scene) {
@@ -271,14 +255,16 @@ function startNewTrial(scene) {
 
     currentTarget = Phaser.Utils.Array.GetRandom(locations);
     
-    // Play sound with error handling
-    if (soundEnabled && soundManager) {
+    // Play sound if enabled
+    if (soundEnabled) {
         try {
-            const sound = soundManager.add(currentTarget.key + '_vo');
-            sound.play().catch(e => console.log('Sound play error:', e));
+            scene.sound.play(currentTarget.key + '_vo');
+            console.log('Playing sound: ' + currentTarget.key + '_vo');
         } catch(e) {
-            console.log('Sound error:', e);
+            console.log('Sound play error:', e);
         }
+    } else {
+        console.log('Sound not enabled yet');
     }
     
     character.x = character.getData('startX');
@@ -298,9 +284,9 @@ function checkDrop(scene, char) {
     });
 
     if (matched) {
-        if (soundEnabled && soundManager) {
+        if (soundEnabled) {
             try {
-                soundManager.play('correct');
+                scene.sound.play('correct');
             } catch(e) {
                 console.log('Sound error:', e);
             }
@@ -312,9 +298,9 @@ function checkDrop(scene, char) {
             startNewTrial(scene);
         });
     } else {
-        if (soundEnabled && soundManager) {
+        if (soundEnabled) {
             try {
-                soundManager.play('wrong');
+                scene.sound.play('wrong');
             } catch(e) {
                 console.log('Sound error:', e);
             }
@@ -330,9 +316,9 @@ function checkDrop(scene, char) {
 }
 
 function showCongratulation(scene) {
-    if (soundEnabled && soundManager) {
+    if (soundEnabled) {
         try {
-            soundManager.play('congrats');
+            scene.sound.play('congrats');
         } catch(e) {
             console.log('Sound error:', e);
         }
