@@ -7,19 +7,11 @@
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
         body { 
-            margin: 0; 
-            padding: 0; 
-            background-color: #FFFAF0; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-            overflow: hidden; /* Prevents bouncing/scrolling on iPhone */
+            margin: 0; padding: 0; background-color: #000; 
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; overflow: hidden; 
         }
-        canvas { 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            border-radius: 10px;
-        }
+        canvas { box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 10px; }
     </style>
 </head>
 <body>
@@ -28,10 +20,10 @@
 const config = {
     type: Phaser.AUTO,
     scale: {
-        mode: Phaser.Scale.FIT, // Automatically fits the screen
+        mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 800,
-        height: 600
+        width: 900,  // Horizontal Width
+        height: 600  // Horizontal Height
     },
     backgroundColor: '#87CEEB',
     physics: { default: 'arcade' },
@@ -41,70 +33,67 @@ const config = {
 const game = new Phaser.Game(config);
 
 let locations = [
-    { key: 'school', text: '學校', x: 200, y: 150 },
-    { key: 'classroom', text: '課室', x: 600, y: 150 },
-    { key: 'toilet', text: '廁所', x: 200, y: 450 },
-    { key: 'kitchen', text: '廚房', x: 600, y: 450 }
+    { key: 'school', text: '學校', x: 250, y: 160 },
+    { key: 'classroom', text: '課室', x: 650, y: 160 },
+    { key: 'toilet', text: '廁所', x: 250, y: 440 },
+    { key: 'kitchen', text: '廚房', x: 650, y: 440 }
 ];
 
-let character, currentTarget, trialCount = 0;
-let scoreText;
+let character, currentTarget, lastTargetKey, trialCount = 0;
+let scoreText, startScreen, gameStarted = false;
+let locationsAsked = new Set(); 
 
 function preload() {
-    // Background and Character
-    this.load.image('bg', 'assets/bg.png');
-    this.load.image('character', 'assets/student.png'); // PNG
+    // Assets
+    this.load.image('bg', 'assets/bg.jpg'); 
+    this.load.image('character', 'assets/student.png');
 
-    // Locations (JPG format)
     locations.forEach(loc => {
         this.load.image(loc.key, `assets/${loc.key}.jpg`);
         this.load.audio(loc.key + '_vo', `assets/${loc.key}.mp3`);
     });
 
-    // Feedback Sounds
     this.load.audio('correct', 'assets/correct.mp3');
     this.load.audio('wrong', 'assets/wrong.mp3');
     this.load.audio('congrats', 'assets/congrats.mp3');
 }
 
 function create() {
-    // 1. Background
-    this.add.image(400, 300, 'bg').setAlpha(0.4);
+    // 1. Background (Scaled to cover horizontal screen)
+    let background = this.add.image(450, 300, 'bg');
+    let scaleX = 900 / background.width;
+    let scaleY = 600 / background.height;
+    let scale = Math.max(scaleX, scaleY);
+    background.setScale(scale).setAlpha(0.5);
     
-    // 2. Create Location Cards
+    // 2. Location Cards
     locations.forEach(loc => {
         let container = this.add.container(loc.x, loc.y);
-        
-        let cardBase = this.add.rectangle(0, 0, 210, 160, 0xffffff).setStrokeStyle(4, 0xFFA500);
-        let img = this.add.image(0, -10, loc.key).setDisplaySize(190, 130);
-        let txt = this.add.text(0, 65, loc.text, { 
-            fontSize: '32px', 
-            color: '#333', 
-            fontWeight: 'bold',
-            fontFamily: 'Microsoft JhengHei',
-            backgroundColor: '#fff'
+        let cardBase = this.add.rectangle(0, 0, 280, 210, 0xffffff).setStrokeStyle(6, 0xFFA500);
+        let img = this.add.image(0, -15, loc.key).setDisplaySize(260, 160);
+        let txt = this.add.text(0, 80, loc.text, { 
+            fontSize: '38px', color: '#333', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
         }).setOrigin(0.5);
-
         container.add([cardBase, img, txt]);
-        container.setSize(210, 160);
-        container.setInteractive();
+        container.setSize(280, 210).setInteractive();
     });
 
-    // 3. Character Setup
-    character = this.add.image(100, 300, 'character').setDisplaySize(110, 160).setInteractive();
+    // 3. Character
+    character = this.add.image(80, 300, 'character').setDisplaySize(90, 130).setInteractive();
     this.input.setDraggable(character);
-    character.setData('startX', 100);
+    character.setData('startX', 80);
     character.setData('startY', 300);
+    character.setVisible(false);
 
-    // 4. UI Text
-    scoreText = this.add.text(20, 20, '進度: 0/10', { 
-        fontSize: '28px', 
-        fill: '#000', 
-        fontWeight: 'bold',
-        fontFamily: 'Microsoft JhengHei'
-    });
+    // 4. Score
+    scoreText = this.add.text(450, 30, '進度: 0/10', { 
+        fontSize: '32px', fill: '#000', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
+    }).setOrigin(0.5).setVisible(false);
 
-    // 5. Drag & Drop Events
+    // 5. Start / Rotation Screen
+    showStartScreen(this);
+
+    // 6. Drag Logic
     this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
         gameObject.x = dragX;
         gameObject.y = dragY;
@@ -113,8 +102,31 @@ function create() {
     this.input.on('dragend', (pointer, gameObject) => {
         checkDrop(this, gameObject);
     });
+}
 
-    startNewTrial(this);
+function showStartScreen(scene) {
+    startScreen = scene.add.container(450, 300);
+    let overlay = scene.add.rectangle(0, 0, 900, 600, 0x000000, 0.85);
+    
+    let remindText = scene.add.text(0, -100, '請將手機橫放進行遊戲\nPlease turn phone horizontally', { 
+        fontSize: '36px', fill: '#fff', align: 'center', fontFamily: 'Microsoft JhengHei', lineSpacing: 10
+    }).setOrigin(0.5);
+
+    // Start Button
+    let btnBG = scene.add.rectangle(0, 80, 220, 90, 0xFFA500).setInteractive().setStrokeStyle(4, 0xffffff);
+    let btnText = scene.add.text(0, 80, '開始', { 
+        fontSize: '44px', fill: '#fff', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
+    }).setOrigin(0.5);
+
+    startScreen.add([overlay, remindText, btnBG, btnText]);
+
+    btnBG.on('pointerdown', () => {
+        startScreen.destroy();
+        gameStarted = true;
+        character.setVisible(true);
+        scoreText.setVisible(true);
+        startNewTrial(scene);
+    });
 }
 
 function startNewTrial(scene) {
@@ -127,20 +139,28 @@ function startNewTrial(scene) {
     character.y = character.getData('startY');
     character.setScale(1);
 
-    currentTarget = Phaser.Utils.Array.GetRandom(locations);
+    // Logic: No repeat twice consecutively & ensure all 4 are used
+    let available = locations.filter(l => l.key !== lastTargetKey);
     
-    // Play Cantonese Voice
+    // During first 4 trials, force unique locations
+    if (trialCount < 4) {
+        let unasked = available.filter(l => !locationsAsked.has(l.key));
+        if (unasked.length > 0) available = unasked;
+    }
+
+    currentTarget = Phaser.Utils.Array.GetRandom(available);
+    lastTargetKey = currentTarget.key;
+    locationsAsked.add(currentTarget.key);
+    
     scene.sound.play(currentTarget.key + '_vo');
 }
 
 function checkDrop(scene, char) {
     let matched = false;
-    
     locations.forEach(loc => {
         if (loc.key === currentTarget.key) {
-            let distance = Phaser.Math.Distance.Between(char.x, char.y, loc.x, loc.y);
-            // If character is dropped within 100 pixels of center of target
-            if (distance < 120) matched = true;
+            let dist = Phaser.Math.Distance.Between(char.x, char.y, loc.x, loc.y);
+            if (dist < 150) matched = true;
         }
     });
 
@@ -148,41 +168,26 @@ function checkDrop(scene, char) {
         scene.sound.play('correct');
         trialCount++;
         scoreText.setText(`進度: ${trialCount}/10`);
-        
         scene.tweens.add({
-            targets: char,
-            scale: 1.2,
-            duration: 200,
-            yoyo: true,
-            onComplete: () => {
-                scene.time.delayedCall(500, () => startNewTrial(scene));
-            }
+            targets: char, scale: 1.2, duration: 200, yoyo: true,
+            onComplete: () => scene.time.delayedCall(500, () => startNewTrial(scene))
         });
     } else {
         scene.sound.play('wrong');
         scene.tweens.add({
-            targets: char,
-            x: char.getData('startX'),
-            y: char.getData('startY'),
-            duration: 500,
-            ease: 'Back.easeOut'
+            targets: char, x: char.getData('startX'), y: char.getData('startY'),
+            duration: 500, ease: 'Back.easeOut'
         });
     }
 }
 
 function showCongratulation(scene) {
     scene.sound.play('congrats');
-    scene.add.rectangle(400, 300, 800, 600, 0x000000, 0.7);
-    
-    scene.add.text(400, 300, '你好棒呀！\n練習完成！', { 
-        fontSize: '64px', 
-        fill: '#FFF', 
-        align: 'center',
-        fontFamily: 'Microsoft JhengHei',
-        stroke: '#FFA500',
-        strokeThickness: 8
+    scene.add.rectangle(450, 300, 900, 600, 0x000000, 0.8);
+    scene.add.text(450, 300, '你好棒呀！\n練習完成！', { 
+        fontSize: '72px', fill: '#FFF', align: 'center', fontFamily: 'Microsoft JhengHei',
+        stroke: '#FFA500', strokeThickness: 10
     }).setOrigin(0.5);
-    
     character.setVisible(false);
 }
 </script>
