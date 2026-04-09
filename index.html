@@ -24,14 +24,16 @@
         }
         
         #game-container {
-            width: 100%;
-            height: 100%;
+            width: 100vw;
+            height: 100vh;
+            max-width: 100%;
+            max-height: 100%;
         }
         
         canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
+            display: block !important;
+            width: 100% !important;
+            height: 100% !important;
         }
     </style>
 </head>
@@ -40,27 +42,42 @@
 <div id="game-container"></div>
 
 <script>
+// Get actual screen dimensions
+const screenWidth = window.innerWidth;
+const screenHeight = window.innerHeight;
+
 const config = {
     type: Phaser.AUTO,
     parent: 'game-container',
     scale: {
         mode: Phaser.Scale.RESIZE,
-        width: window.innerWidth,
-        height: window.innerHeight,
-        autoCenter: Phaser.Scale.CENTER_BOTH
+        width: screenWidth,
+        height: screenHeight,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        expandParent: true,
+        fullscreenTarget: 'game-container'
     },
     backgroundColor: '#87CEEB',
-    physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
+    physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
     scene: { preload: preload, create: create, update: update }
 };
 
 const game = new Phaser.Game(config);
 
+// Responsive positioning based on screen size
+const isPortrait = screenHeight > screenWidth;
+const gameWidth = isPortrait ? screenWidth : screenHeight;
+const gameHeight = isPortrait ? screenHeight : screenWidth;
+
+// Scale factor
+const scaleFactor = Math.min(gameWidth / 800, gameHeight / 600);
+
+// Adjusted positions
 let locations = [
-    { key: 'school', text: '學校', x: 200, y: 150 },
-    { key: 'classroom', text: '課室', x: 600, y: 150 },
-    { key: 'toilet', text: '廁所', x: 200, y: 450 },
-    { key: 'kitchen', text: '廚房', x: 600, y: 450 }
+    { key: 'school', text: '學校', x: gameWidth * 0.25, y: gameHeight * 0.2 },
+    { key: 'classroom', text: '課室', x: gameWidth * 0.75, y: gameHeight * 0.2 },
+    { key: 'toilet', text: '廁所', x: gameWidth * 0.25, y: gameHeight * 0.7 },
+    { key: 'kitchen', text: '廚房', x: gameWidth * 0.75, y: gameHeight * 0.7 }
 ];
 
 let character, currentTarget, trialCount = 0;
@@ -77,52 +94,70 @@ function preload() {
 }
 
 function create() {
-    // Background
-    this.add.image(400, 300, 'bg').setAlpha(0.3);
+    const scene = this;
     
-    // Create location zones
+    // Background
+    this.add.image(gameWidth / 2, gameHeight / 2, 'bg').setAlpha(0.3).setDisplaySize(gameWidth, gameHeight);
+    
+    // Create location zones with responsive sizing
+    const locImageWidth = gameWidth * 0.2;
+    const locImageHeight = gameHeight * 0.15;
+    
     locations.forEach(loc => {
         let zone = this.add.container(loc.x, loc.y);
-        let img = this.add.image(0, 0, loc.key).setDisplaySize(150, 120);
-        let txt = this.add.text(0, 70, loc.text, { 
-            fontSize: '24px', 
+        let img = this.add.image(0, 0, loc.key).setDisplaySize(locImageWidth, locImageHeight);
+        let txt = this.add.text(0, locImageHeight / 2 + 20, loc.text, { 
+            fontSize: Math.max(16, gameWidth * 0.05) + 'px', 
             color: '#000', 
             backgroundColor: '#fff',
-            padding: { x: 10, y: 5 }
+            padding: { x: 10, y: 5 },
+            align: 'center'
         }).setOrigin(0.5);
         zone.add([img, txt]);
         zone.setData('key', loc.key);
     });
 
-    // Character
-    character = this.add.image(100, 300, 'character').setDisplaySize(80, 120);
+    // Character - positioned on left side
+    const charStartX = gameWidth * 0.1;
+    const charStartY = gameHeight * 0.45;
+    const charSize = gameWidth * 0.15;
+    
+    character = this.add.image(charStartX, charStartY, 'character').setDisplaySize(charSize, charSize * 1.3);
     this.input.setDraggable(character);
-    character.setData('startX', 100);
-    character.setData('startY', 300);
+    character.setData('startX', charStartX);
+    character.setData('startY', charStartY);
+    character.setDepth(10);
 
-    // UI
-    scoreText = this.add.text(20, 20, '進度: 0/10', { 
-        fontSize: '24px', 
+    // UI - Score
+    scoreText = this.add.text(gameWidth * 0.02, gameHeight * 0.02, '進度: 0/10', { 
+        fontSize: Math.max(18, gameWidth * 0.04) + 'px', 
         fill: '#000', 
         backgroundColor: '#fff',
         padding: { x: 10, y: 5 }
     });
     
-    instructionText = this.add.text(400, 50, '跳到: 學校', { 
-        fontSize: '28px', 
+    // UI - Instruction
+    instructionText = this.add.text(gameWidth / 2, gameHeight * 0.05, '跳到: 學校', { 
+        fontSize: Math.max(20, gameWidth * 0.06) + 'px', 
         fill: '#fff',
         backgroundColor: '#333',
-        padding: { x: 15, y: 10 }
+        padding: { x: 15, y: 10 },
+        align: 'center'
     }).setOrigin(0.5);
 
     // Drag logic
     this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
-        gameObject.x = dragX;
-        gameObject.y = dragY;
+        gameObject.x = Phaser.Math.Clamp(dragX, 0, gameWidth);
+        gameObject.y = Phaser.Math.Clamp(dragY, 0, gameHeight);
     });
 
     this.input.on('dragend', (pointer, gameObject) => {
         checkDrop(this, gameObject);
+    });
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        location.reload(); // Simple reload on resize
     });
 
     // Start first trial
@@ -145,11 +180,12 @@ function startNewTrial(scene) {
 
 function checkDrop(scene, char) {
     let matched = false;
+    const dropDistance = gameWidth * 0.15; // 15% of screen width
     
     locations.forEach(loc => {
         if (loc.key === currentTarget.key) {
             let dist = Phaser.Math.Distance.Between(char.x, char.y, loc.x, loc.y);
-            if (dist < 120) {
+            if (dist < dropDistance) {
                 matched = true;
             }
         }
@@ -160,12 +196,12 @@ function checkDrop(scene, char) {
         scoreText.setText(`進度: ${trialCount}/10`);
         
         // Show feedback
-        let feedback = scene.add.text(400, 300, '✓ 正確!', { 
-            fontSize: '64px', 
+        let feedback = scene.add.text(gameWidth / 2, gameHeight / 2, '✓ 正確!', { 
+            fontSize: Math.max(48, gameWidth * 0.12) + 'px', 
             fill: '#00ff00',
             stroke: '#000',
             strokeThickness: 4
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(100);
         
         scene.time.delayedCall(800, () => {
             feedback.destroy();
@@ -173,12 +209,12 @@ function checkDrop(scene, char) {
         });
     } else {
         // Show feedback
-        let feedback = scene.add.text(400, 300, '✗ 不對', { 
-            fontSize: '64px', 
+        let feedback = scene.add.text(gameWidth / 2, gameHeight / 2, '✗ 不對', { 
+            fontSize: Math.max(48, gameWidth * 0.12) + 'px', 
             fill: '#ff0000',
             stroke: '#fff',
             strokeThickness: 4
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(100);
         
         scene.time.delayedCall(800, () => {
             feedback.destroy();
@@ -195,14 +231,14 @@ function checkDrop(scene, char) {
 }
 
 function showCongratulation(scene) {
-    let overlay = scene.add.rectangle(400, 300, 800, 600, 0x000000, 0.8);
-    scene.add.text(400, 300, '你好棒！\n完成練習了！', { 
-        fontSize: '56px', 
+    let overlay = scene.add.rectangle(gameWidth / 2, gameHeight / 2, gameWidth, gameHeight, 0x000000, 0.8);
+    scene.add.text(gameWidth / 2, gameHeight / 2, '你好棒！\n完成練習了！', { 
+        fontSize: Math.max(40, gameWidth * 0.1) + 'px', 
         fill: '#fff', 
         align: 'center',
         backgroundColor: '#333',
         padding: { x: 20, y: 20 }
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(101);
     
     character.setVisible(false);
 }
