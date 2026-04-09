@@ -2,12 +2,24 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>幼稚園廣東話認字遊戲</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #FFFAF0; font-family: 'Microsoft JhengHei', sans-serif; }
-        canvas { border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #FFFAF0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            overflow: hidden; /* Prevents bouncing/scrolling on iPhone */
+        }
+        canvas { 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
@@ -15,8 +27,12 @@
 <script>
 const config = {
     type: Phaser.AUTO,
-    width: 800,
-    height: 600,
+    scale: {
+        mode: Phaser.Scale.FIT, // Automatically fits the screen
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: 800,
+        height: 600
+    },
     backgroundColor: '#87CEEB',
     physics: { default: 'arcade' },
     scene: { preload: preload, create: create }
@@ -24,7 +40,6 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-// Game Data
 let locations = [
     { key: 'school', text: '學校', x: 200, y: 150 },
     { key: 'classroom', text: '課室', x: 600, y: 150 },
@@ -37,8 +52,8 @@ let scoreText;
 
 function preload() {
     // Background and Character
-    this.load.image('bg', 'assets/bg.jpg');
-    this.load.image('character', 'assets/student.png'); // PNG format
+    this.load.image('bg', 'assets/bg.png');
+    this.load.image('character', 'assets/student.png'); // PNG
 
     // Locations (JPG format)
     locations.forEach(loc => {
@@ -46,47 +61,50 @@ function preload() {
         this.load.audio(loc.key + '_vo', `assets/${loc.key}.mp3`);
     });
 
-    // Universal Sounds
+    // Feedback Sounds
     this.load.audio('correct', 'assets/correct.mp3');
     this.load.audio('wrong', 'assets/wrong.mp3');
     this.load.audio('congrats', 'assets/congrats.mp3');
 }
 
 function create() {
-    // 1. Scene setup
+    // 1. Background
     this.add.image(400, 300, 'bg').setAlpha(0.4);
     
-    // 2. Create Location Zones
+    // 2. Create Location Cards
     locations.forEach(loc => {
         let container = this.add.container(loc.x, loc.y);
         
-        // White "Card" Background for the JPG
         let cardBase = this.add.rectangle(0, 0, 210, 160, 0xffffff).setStrokeStyle(4, 0xFFA500);
         let img = this.add.image(0, -10, loc.key).setDisplaySize(190, 130);
         let txt = this.add.text(0, 65, loc.text, { 
-            fontSize: '28px', 
+            fontSize: '32px', 
             color: '#333', 
             fontWeight: 'bold',
-            backgroundColor: '#fff',
-            padding: { x: 5, y: 2 }
+            fontFamily: 'Microsoft JhengHei',
+            backgroundColor: '#fff'
         }).setOrigin(0.5);
 
         container.add([cardBase, img, txt]);
         container.setSize(210, 160);
-        // Make the container itself interactive for the drop check
         container.setInteractive();
     });
 
-    // 3. Character setup
+    // 3. Character Setup
     character = this.add.image(100, 300, 'character').setDisplaySize(110, 160).setInteractive();
     this.input.setDraggable(character);
     character.setData('startX', 100);
     character.setData('startY', 300);
 
-    // 4. UI
-    scoreText = this.add.text(20, 20, '進度: 0/10', { fontSize: '28px', fill: '#000', fontWeight: 'bold' });
+    // 4. UI Text
+    scoreText = this.add.text(20, 20, '進度: 0/10', { 
+        fontSize: '28px', 
+        fill: '#000', 
+        fontWeight: 'bold',
+        fontFamily: 'Microsoft JhengHei'
+    });
 
-    // 5. Drag Events
+    // 5. Drag & Drop Events
     this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
         gameObject.x = dragX;
         gameObject.y = dragY;
@@ -96,7 +114,6 @@ function create() {
         checkDrop(this, gameObject);
     });
 
-    // Start first round
     startNewTrial(this);
 }
 
@@ -106,26 +123,24 @@ function startNewTrial(scene) {
         return;
     }
 
-    // Reset character
     character.x = character.getData('startX');
     character.y = character.getData('startY');
     character.setScale(1);
 
-    // Pick target
     currentTarget = Phaser.Utils.Array.GetRandom(locations);
     
-    // Play Cantonese Voiceover
+    // Play Cantonese Voice
     scene.sound.play(currentTarget.key + '_vo');
 }
 
 function checkDrop(scene, char) {
     let matched = false;
     
-    // Calculate distance to target location
     locations.forEach(loc => {
         if (loc.key === currentTarget.key) {
             let distance = Phaser.Math.Distance.Between(char.x, char.y, loc.x, loc.y);
-            if (distance < 100) matched = true;
+            // If character is dropped within 100 pixels of center of target
+            if (distance < 120) matched = true;
         }
     });
 
@@ -134,19 +149,17 @@ function checkDrop(scene, char) {
         trialCount++;
         scoreText.setText(`進度: ${trialCount}/10`);
         
-        // Visual success effect
         scene.tweens.add({
             targets: char,
             scale: 1.2,
             duration: 200,
             yoyo: true,
             onComplete: () => {
-                scene.time.delayedCall(800, () => startNewTrial(scene));
+                scene.time.delayedCall(500, () => startNewTrial(scene));
             }
         });
     } else {
         scene.sound.play('wrong');
-        // Snap back animation
         scene.tweens.add({
             targets: char,
             x: char.getData('startX'),
@@ -159,21 +172,15 @@ function checkDrop(scene, char) {
 
 function showCongratulation(scene) {
     scene.sound.play('congrats');
+    scene.add.rectangle(400, 300, 800, 600, 0x000000, 0.7);
     
-    // Darken background
-    scene.add.rectangle(400, 300, 800, 600, 0x000000, 0.6);
-    
-    // Big congrats text
-    scene.add.text(400, 250, '你好棒呀！', { 
-        fontSize: '80px', 
+    scene.add.text(400, 300, '你好棒呀！\n練習完成！', { 
+        fontSize: '64px', 
         fill: '#FFF', 
-        stroke: '#FFA500', 
-        strokeThickness: 10 
-    }).setOrigin(0.5);
-
-    scene.add.text(400, 350, '練習完成！', { 
-        fontSize: '40px', 
-        fill: '#FFF' 
+        align: 'center',
+        fontFamily: 'Microsoft JhengHei',
+        stroke: '#FFA500',
+        strokeThickness: 8
     }).setOrigin(0.5);
     
     character.setVisible(false);
