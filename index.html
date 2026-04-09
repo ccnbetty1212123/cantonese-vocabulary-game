@@ -85,6 +85,14 @@
             text-align: center;
             padding: 20px;
         }
+
+        #debug-info {
+            color: #ccc;
+            font-size: 12px;
+            margin-top: 20px;
+            text-align: center;
+            max-width: 80%;
+        }
     </style>
 </head>
 <body>
@@ -92,32 +100,67 @@
 <div id="sound-prompt">
     <div class="sound-text">🔊 請先啟用聲音</div>
     <button id="enable-sound" class="sound-button">啟用聲音</button>
+    <div id="debug-info">檢查: 音量是否打開 / Mute 開關是否關閉</div>
 </div>
 
 <div id="game-container"></div>
 
 <script>
 let soundEnabled = false;
+let audioContext = null;
+
+// Create AudioContext for iOS
+function initAudioContext() {
+    if (!audioContext) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+            audioContext = new AudioContext();
+            // Create a simple oscillator to wake up the audio system
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            gain.gain.value = 0; // Silent
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.start(0);
+            osc.stop(audioContext.currentTime + 0.001);
+        }
+    }
+}
 
 // Enable sound on user interaction
 document.getElementById('enable-sound').addEventListener('click', function() {
     soundEnabled = true;
     document.getElementById('sound-prompt').classList.add('hidden');
     
-    // Resume audio context on iOS
+    // Initialize audio context
+    initAudioContext();
+    
+    // Resume audio context
+    if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+            console.log('Audio context resumed');
+        });
+    }
+    
+    // Resume Phaser sound
     if (window.game && window.game.sound) {
         window.game.sound.resume();
+        window.game.sound.unlock();
     }
 });
 
-// Alternative: Try to enable sound on any user interaction
-document.addEventListener('touchstart', function enableSound() {
+// Also enable on any touch
+document.addEventListener('touchend', function enableSound() {
     if (!soundEnabled) {
         soundEnabled = true;
+        initAudioContext();
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
         if (window.game && window.game.sound) {
             window.game.sound.resume();
+            window.game.sound.unlock();
         }
-        document.removeEventListener('touchstart', enableSound);
     }
 }, false);
 
@@ -141,7 +184,8 @@ const config = {
         }
     },
     audio: {
-        disableWebAudio: false
+        disableWebAudio: false,
+        context: audioContext
     }
 };
 
@@ -157,26 +201,30 @@ let locations = [
 
 let character, currentTarget, trialCount = 0;
 let feedbackText, scoreText;
+let soundManager;
 
 function preload() {
-    // Load Images - Background and location images as JPG
+    // Load Images
     this.load.image('bg', 'assets/bg.jpg');
     this.load.image('character', 'assets/student.png');
     locations.forEach(loc => {
         this.load.image(loc.key, `assets/${loc.key}.jpg`);
     });
 
-    // Load Audio
+    // Load Audio - Try multiple formats for compatibility
     locations.forEach(loc => {
-        this.load.audio(loc.key + '_vo', `assets/${loc.key}.mp3`);
+        this.load.audio(loc.key + '_vo', ['assets/' + loc.key + '.mp3', 'assets/' + loc.key + '.m4a']);
     });
-    this.load.audio('correct', 'assets/correct.mp3');
-    this.load.audio('wrong', 'assets/wrong.mp3');
-    this.load.audio('congrats', 'assets/congrats.mp3');
+    this.load.audio('correct', ['assets/correct.mp3', 'assets/correct.m4a']);
+    this.load.audio('wrong', ['assets/wrong.mp3', 'assets/wrong.m4a']);
+    this.load.audio('congrats', ['assets/congrats.mp3', 'assets/congrats.m4a']);
 }
 
 function create() {
-    // Resume audio context on iOS
+    soundManager = this.sound;
+    
+    // Unlock audio
+    this.sound.unlock();
     this.sound.resume();
 
     // 1. Setup Background and Locations
@@ -202,7 +250,7 @@ function create() {
     scoreText = this.add.text(20, 20, '進度: 0/10', { fontSize: '20px', fill: '#000', backgroundColor: '#fff', padding: { x: 10, y: 5 } });
     feedbackText = this.add.text(400, 300, '', { fontSize: '48px', fill: '#ff0000', stroke: '#fff', strokeThickness: 4 }).setOrigin(0.5).setVisible(false);
 
-    // 4. Drag Logic - Touch & Mouse Support
+    // 4. Drag Logic
     this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
         gameObject.x = dragX;
         gameObject.y = dragY;
@@ -221,15 +269,18 @@ function startNewTrial(scene) {
         return;
     }
 
-    // Pick a random location
     currentTarget = Phaser.Utils.Array.GetRandom(locations);
     
-    // Play Cantonese Voiceover: 「我要去 [Location]」
-    if (soundEnabled) {
-        scene.sound.play(currentTarget.key + '_vo');
+    // Play sound with error handling
+    if (soundEnabled && soundManager) {
+        try {
+            const sound = soundManager.add(currentTarget.key + '_vo');
+            sound.play().catch(e => console.log('Sound play error:', e));
+        } catch(e) {
+            console.log('Sound error:', e);
+        }
     }
     
-    // Reset Character Position
     character.x = character.getData('startX');
     character.y = character.getData('startY');
 }
@@ -237,7 +288,6 @@ function startNewTrial(scene) {
 function checkDrop(scene, char) {
     let matched = false;
     
-    // Check if character is over the correct box
     locations.forEach(loc => {
         if (loc.key === currentTarget.key) {
             let dist = Phaser.Math.Distance.Between(char.x, char.y, loc.x, loc.y);
@@ -248,21 +298,27 @@ function checkDrop(scene, char) {
     });
 
     if (matched) {
-        if (soundEnabled) {
-            scene.sound.play('correct');
+        if (soundEnabled && soundManager) {
+            try {
+                soundManager.play('correct');
+            } catch(e) {
+                console.log('Sound error:', e);
+            }
         }
         trialCount++;
         scoreText.setText(`進度: ${trialCount}/10`);
         
-        // Brief pause before next trial
         scene.time.delayedCall(1000, () => {
             startNewTrial(scene);
         });
     } else {
-        if (soundEnabled) {
-            scene.sound.play('wrong');
+        if (soundEnabled && soundManager) {
+            try {
+                soundManager.play('wrong');
+            } catch(e) {
+                console.log('Sound error:', e);
+            }
         }
-        // Snap back to start
         scene.tweens.add({
             targets: char,
             x: char.getData('startX'),
@@ -274,8 +330,12 @@ function checkDrop(scene, char) {
 }
 
 function showCongratulation(scene) {
-    if (soundEnabled) {
-        scene.sound.play('congrats');
+    if (soundEnabled && soundManager) {
+        try {
+            soundManager.play('congrats');
+        } catch(e) {
+            console.log('Sound error:', e);
+        }
     }
     let overlay = scene.add.rectangle(400, 300, 800, 600, 0x000000, 0.7);
     scene.add.text(400, 300, '你好棒！\n完成練習了！', { 
