@@ -16,8 +16,8 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #f0f0f0;
-            font-family: 'Comic Sans MS', cursive, sans-serif;
+            background-color: #87CEEB;
+            font-family: 'Arial', sans-serif;
             -webkit-user-select: none;
             user-select: none;
             -webkit-touch-callout: none;
@@ -26,212 +26,96 @@
         #game-container {
             width: 100%;
             height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
         
         canvas {
-            max-width: 100%;
-            max-height: 100%;
             display: block;
-        }
-
-        #sound-prompt {
-            position: fixed;
-            top: 0;
-            left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.95);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            flex-direction: column;
-            gap: 30px;
-        }
-
-        #sound-prompt.hidden {
-            display: none;
-        }
-
-        .sound-button {
-            padding: 20px 60px;
-            font-size: 28px;
-            border: none;
-            border-radius: 15px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-            -webkit-appearance: none;
-            appearance: none;
-        }
-
-        .sound-button:active {
-            transform: scale(0.95);
-        }
-
-        #enable-sound {
-            background-color: #4CAF50;
-            color: white;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        }
-
-        #enable-sound:active {
-            background-color: #45a049;
-        }
-
-        .sound-text {
-            color: white;
-            font-size: 32px;
-            text-align: center;
-            padding: 20px;
-        }
-
-        #debug-info {
-            color: #aaa;
-            font-size: 16px;
-            margin-top: 20px;
-            text-align: center;
-            max-width: 80%;
-            line-height: 1.6;
         }
     </style>
 </head>
 <body>
 
-<div id="sound-prompt">
-    <div class="sound-text">🔊 請先啟用聲音</div>
-    <button id="enable-sound" class="sound-button">點擊啟用</button>
-    <div id="debug-info">✓ 檢查音量是否打開<br>✓ Mute 開關是否關閉</div>
-</div>
-
 <div id="game-container"></div>
 
 <script>
-let soundEnabled = false;
-let gameCreated = false;
-
-// Enable sound on button click
-document.getElementById('enable-sound').addEventListener('click', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('Button clicked, enabling sound...');
-    
-    soundEnabled = true;
-    document.getElementById('sound-prompt').classList.add('hidden');
-    
-    // If game already exists, resume it
-    if (window.game && window.game.sound) {
-        window.game.sound.resume();
-        window.game.sound.unlock();
-    }
-});
-
-// Also enable on any touch if not already enabled
-document.addEventListener('touchstart', function() {
-    if (!soundEnabled) {
-        soundEnabled = true;
-        console.log('Touch detected, enabling sound...');
-        document.getElementById('sound-prompt').classList.add('hidden');
-        if (window.game && window.game.sound) {
-            window.game.sound.resume();
-            window.game.sound.unlock();
-        }
-    }
-}, { once: true });
-
 const config = {
     type: Phaser.AUTO,
     parent: 'game-container',
     scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 800,
-        height: 600,
-        orientation: 'portrait',
-        expandParent: true
+        mode: Phaser.Scale.RESIZE,
+        width: window.innerWidth,
+        height: window.innerHeight,
+        autoCenter: Phaser.Scale.CENTER_BOTH
     },
     backgroundColor: '#87CEEB',
-    physics: { default: 'arcade' },
-    scene: { preload: preload, create: create, update: update },
-    input: {
-        touch: {
-            target: window
-        }
-    },
-    audio: {
-        disableWebAudio: false
-    }
+    physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
+    scene: { preload: preload, create: create, update: update }
 };
 
 const game = new Phaser.Game(config);
-window.game = game;
 
 let locations = [
-    { key: 'school', text: '��校', x: 200, y: 150 },
+    { key: 'school', text: '學校', x: 200, y: 150 },
     { key: 'classroom', text: '課室', x: 600, y: 150 },
     { key: 'toilet', text: '廁所', x: 200, y: 450 },
     { key: 'kitchen', text: '廚房', x: 600, y: 450 }
 ];
 
 let character, currentTarget, trialCount = 0;
-let feedbackText, scoreText;
-let sceneInstance;
+let scoreText, instructionText;
+let gameStarted = false;
 
 function preload() {
-    console.log('Preloading assets...');
-    
-    // Load Images
+    // Load Images only
     this.load.image('bg', 'assets/bg.jpg');
     this.load.image('character', 'assets/student.png');
     locations.forEach(loc => {
         this.load.image(loc.key, `assets/${loc.key}.jpg`);
     });
-
-    // Load Audio
-    locations.forEach(loc => {
-        this.load.audio(loc.key + '_vo', `assets/${loc.key}.mp3`);
-    });
-    this.load.audio('correct', 'assets/correct.mp3');
-    this.load.audio('wrong', 'assets/wrong.mp3');
-    this.load.audio('congrats', 'assets/congrats.mp3');
 }
 
 function create() {
-    console.log('Game scene created');
-    sceneInstance = this;
-    gameCreated = true;
-    
-    // Unlock and resume audio
-    this.sound.unlock();
-    this.sound.resume();
-
-    // 1. Setup Background and Locations
+    // Background
     this.add.image(400, 300, 'bg').setAlpha(0.3);
     
+    // Create location zones
     locations.forEach(loc => {
         let zone = this.add.container(loc.x, loc.y);
-        let img = this.add.image(0, 0, loc.key).setDisplaySize(150, 120).setInteractive();
-        let txt = this.add.text(0, 70, loc.text, { fontSize: '24px', color: '#000', backgroundColor: '#fff', padding: { x: 10, y: 5 } }).setOrigin(0.5);
+        let img = this.add.image(0, 0, loc.key).setDisplaySize(150, 120);
+        let txt = this.add.text(0, 70, loc.text, { 
+            fontSize: '24px', 
+            color: '#000', 
+            backgroundColor: '#fff',
+            padding: { x: 10, y: 5 }
+        }).setOrigin(0.5);
         zone.add([img, txt]);
-        zone.setSize(150, 120);
         zone.setData('key', loc.key);
-        zone.setInteractive();
     });
 
-    // 2. Character Setup
-    character = this.add.image(100, 300, 'character').setDisplaySize(80, 120).setInteractive();
+    // Character
+    character = this.add.image(100, 300, 'character').setDisplaySize(80, 120);
     this.input.setDraggable(character);
     character.setData('startX', 100);
     character.setData('startY', 300);
 
-    // 3. UI Elements
-    scoreText = this.add.text(20, 20, '進度: 0/10', { fontSize: '20px', fill: '#000', backgroundColor: '#fff', padding: { x: 10, y: 5 } });
-    feedbackText = this.add.text(400, 300, '', { fontSize: '48px', fill: '#ff0000', stroke: '#fff', strokeThickness: 4 }).setOrigin(0.5).setVisible(false);
+    // UI
+    scoreText = this.add.text(20, 20, '進度: 0/10', { 
+        fontSize: '24px', 
+        fill: '#000', 
+        backgroundColor: '#fff',
+        padding: { x: 10, y: 5 }
+    });
+    
+    instructionText = this.add.text(400, 50, '跳到: 學校', { 
+        fontSize: '28px', 
+        fill: '#fff',
+        backgroundColor: '#333',
+        padding: { x: 15, y: 10 }
+    }).setOrigin(0.5);
 
-    // 4. Drag Logic
+    // Drag logic
     this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
         gameObject.x = dragX;
         gameObject.y = dragY;
@@ -241,10 +125,9 @@ function create() {
         checkDrop(this, gameObject);
     });
 
-    // Start game after a brief delay
-    this.time.delayedCall(500, () => {
-        startNewTrial(this);
-    });
+    // Start first trial
+    startNewTrial(this);
+    gameStarted = true;
 }
 
 function startNewTrial(scene) {
@@ -254,18 +137,7 @@ function startNewTrial(scene) {
     }
 
     currentTarget = Phaser.Utils.Array.GetRandom(locations);
-    
-    // Play sound if enabled
-    if (soundEnabled) {
-        try {
-            scene.sound.play(currentTarget.key + '_vo');
-            console.log('Playing sound: ' + currentTarget.key + '_vo');
-        } catch(e) {
-            console.log('Sound play error:', e);
-        }
-    } else {
-        console.log('Sound not enabled yet');
-    }
+    instructionText.setText('跳到: ' + currentTarget.text);
     
     character.x = character.getData('startX');
     character.y = character.getData('startY');
@@ -277,53 +149,53 @@ function checkDrop(scene, char) {
     locations.forEach(loc => {
         if (loc.key === currentTarget.key) {
             let dist = Phaser.Math.Distance.Between(char.x, char.y, loc.x, loc.y);
-            if (dist < 100) {
+            if (dist < 120) {
                 matched = true;
             }
         }
     });
 
     if (matched) {
-        if (soundEnabled) {
-            try {
-                scene.sound.play('correct');
-            } catch(e) {
-                console.log('Sound error:', e);
-            }
-        }
         trialCount++;
         scoreText.setText(`進度: ${trialCount}/10`);
         
-        scene.time.delayedCall(1000, () => {
+        // Show feedback
+        let feedback = scene.add.text(400, 300, '✓ 正確!', { 
+            fontSize: '64px', 
+            fill: '#00ff00',
+            stroke: '#000',
+            strokeThickness: 4
+        }).setOrigin(0.5);
+        
+        scene.time.delayedCall(800, () => {
+            feedback.destroy();
             startNewTrial(scene);
         });
     } else {
-        if (soundEnabled) {
-            try {
-                scene.sound.play('wrong');
-            } catch(e) {
-                console.log('Sound error:', e);
-            }
-        }
-        scene.tweens.add({
-            targets: char,
-            x: char.getData('startX'),
-            y: char.getData('startY'),
-            duration: 500,
-            ease: 'Power2'
+        // Show feedback
+        let feedback = scene.add.text(400, 300, '✗ 不對', { 
+            fontSize: '64px', 
+            fill: '#ff0000',
+            stroke: '#fff',
+            strokeThickness: 4
+        }).setOrigin(0.5);
+        
+        scene.time.delayedCall(800, () => {
+            feedback.destroy();
+            // Snap back
+            scene.tweens.add({
+                targets: char,
+                x: char.getData('startX'),
+                y: char.getData('startY'),
+                duration: 400,
+                ease: 'Power2'
+            });
         });
     }
 }
 
 function showCongratulation(scene) {
-    if (soundEnabled) {
-        try {
-            scene.sound.play('congrats');
-        } catch(e) {
-            console.log('Sound error:', e);
-        }
-    }
-    let overlay = scene.add.rectangle(400, 300, 800, 600, 0x000000, 0.7);
+    let overlay = scene.add.rectangle(400, 300, 800, 600, 0x000000, 0.8);
     scene.add.text(400, 300, '你好棒！\n完成練習了！', { 
         fontSize: '56px', 
         fill: '#fff', 
