@@ -1,40 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, minimum-scale=1, maximum-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>廣東話詞彙小遊戲</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        * {
+        body {
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-        
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
             background-color: #87CEEB;
-            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            touch-action: none; /* Prevents pull-to-refresh and gestures on iOS */
+            -webkit-touch-callout: none;
             -webkit-user-select: none;
             user-select: none;
-            -webkit-touch-callout: none;
         }
-        
         #game-container {
             width: 100vw;
             height: 100vh;
-            max-width: 100%;
-            max-height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-        
         canvas {
-            display: block !important;
-            width: 100% !important;
-            height: 100% !important;
-            touch-action: none; /* CRITICAL FOR iOS */
-            -ms-touch-action: none;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
         }
     </style>
 </head>
 <body ontouchmove="event.preventDefault()">
+
+<div id="game-container"></div>
+
+<script>
+    // Screen dimensions
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+
+    const config = {
+        type: Phaser.AUTO,
+        parent: 'game-container',
+        backgroundColor: '#87CEEB',
+        scale: {
+            mode: Phaser.Scale.FIT, // Best for iOS: fits screen while maintaining aspect ratio
+            autoCenter: Phaser.Scale.CENTER_BOTH,
+            width: screenWidth,
+            height: screenHeight
+        },
+        input: {
+            activePointers: 3 // Allows smooth dragging on touch screens
+        },
+        physics: {
+            default: 'arcade',
+            arcade: { gravity: { y: 0 }, debug: false }
+        },
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+    };
+
+    const game = new Phaser.Game(config);
+    let character;
+
+    function preload() {
+        // Replace this URL with your actual character image link
+        this.load.image('character', 'https://labs.phaser.io/assets/sprites/phaser-dude.png');
+    }
+
+    function create() {
+        const charStartX = screenWidth / 2;
+        const charStartY = screenHeight / 2;
+        const charSize = 100;
+
+        // 1. Create the character
+        character = this.add.image(charStartX, charStartY, 'character');
+        character.setDisplaySize(charSize, charSize);
+
+        // 2. Make it interactive for dragging
+        // 'setInteractive' with 'draggable: true' is the cleanest way for mobile
+        character.setInteractive({ draggable: true, useHandCursor: true });
+
+        // 3. The Drag Logic
+        // This 'drag' event is highly responsive on iPad/iPhone
+        this.input.on('drag', function (pointer, gameObject, dragX, dragY) {
+            gameObject.x = dragX;
+            gameObject.y = dragY;
+        });
+
+        // 4. Visual Feedback for touch
+        this.input.on('dragstart', function (pointer, gameObject) {
+            gameObject.setTint(0xdddddd); // Darken when touched
+            gameObject.setScale(gameObject.scaleX * 1.1); // Slight "pop" effect
+        });
+
+        this.input.on('dragend', function (pointer, gameObject) {
+            gameObject.clearTint();
+            gameObject.setScale(gameObject.scaleX / 1.1);
+        });
+    }
+
+    function update() {
+        // Game loop logic goes here
+    }
+</script>
+
+</body>
+</html>
