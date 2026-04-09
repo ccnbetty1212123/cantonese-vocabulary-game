@@ -2,109 +2,182 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>廣東話詞彙小遊戲</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>幼稚園廣東話認字遊戲</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #87CEEB;
-            overflow: hidden;
-            touch-action: none; /* Prevents pull-to-refresh and gestures on iOS */
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            user-select: none;
-        }
-        #game-container {
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        canvas {
-            box-shadow: 0 0 20px rgba(0,0,0,0.2);
-        }
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #FFFAF0; font-family: 'Microsoft JhengHei', sans-serif; }
+        canvas { border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
     </style>
 </head>
-<body ontouchmove="event.preventDefault()">
-
-<div id="game-container"></div>
+<body>
 
 <script>
-    // Screen dimensions
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
+const config = {
+    type: Phaser.AUTO,
+    width: 800,
+    height: 600,
+    backgroundColor: '#87CEEB',
+    physics: { default: 'arcade' },
+    scene: { preload: preload, create: create }
+};
 
-    const config = {
-        type: Phaser.AUTO,
-        parent: 'game-container',
-        backgroundColor: '#87CEEB',
-        scale: {
-            mode: Phaser.Scale.FIT, // Best for iOS: fits screen while maintaining aspect ratio
-            autoCenter: Phaser.Scale.CENTER_BOTH,
-            width: screenWidth,
-            height: screenHeight
-        },
-        input: {
-            activePointers: 3 // Allows smooth dragging on touch screens
-        },
-        physics: {
-            default: 'arcade',
-            arcade: { gravity: { y: 0 }, debug: false }
-        },
-        scene: {
-            preload: preload,
-            create: create,
-            update: update
+const game = new Phaser.Game(config);
+
+// Game Data
+let locations = [
+    { key: 'school', text: '學校', x: 200, y: 150 },
+    { key: 'classroom', text: '課室', x: 600, y: 150 },
+    { key: 'toilet', text: '廁所', x: 200, y: 450 },
+    { key: 'kitchen', text: '廚房', x: 600, y: 450 }
+];
+
+let character, currentTarget, trialCount = 0;
+let scoreText;
+
+function preload() {
+    // Background and Character
+    this.load.image('bg', 'assets/bg.jpg');
+    this.load.image('character', 'assets/student.png'); // PNG format
+
+    // Locations (JPG format)
+    locations.forEach(loc => {
+        this.load.image(loc.key, `assets/${loc.key}.jpg`);
+        this.load.audio(loc.key + '_vo', `assets/${loc.key}.mp3`);
+    });
+
+    // Universal Sounds
+    this.load.audio('correct', 'assets/correct.mp3');
+    this.load.audio('wrong', 'assets/wrong.mp3');
+    this.load.audio('congrats', 'assets/congrats.mp3');
+}
+
+function create() {
+    // 1. Scene setup
+    this.add.image(400, 300, 'bg').setAlpha(0.4);
+    
+    // 2. Create Location Zones
+    locations.forEach(loc => {
+        let container = this.add.container(loc.x, loc.y);
+        
+        // White "Card" Background for the JPG
+        let cardBase = this.add.rectangle(0, 0, 210, 160, 0xffffff).setStrokeStyle(4, 0xFFA500);
+        let img = this.add.image(0, -10, loc.key).setDisplaySize(190, 130);
+        let txt = this.add.text(0, 65, loc.text, { 
+            fontSize: '28px', 
+            color: '#333', 
+            fontWeight: 'bold',
+            backgroundColor: '#fff',
+            padding: { x: 5, y: 2 }
+        }).setOrigin(0.5);
+
+        container.add([cardBase, img, txt]);
+        container.setSize(210, 160);
+        // Make the container itself interactive for the drop check
+        container.setInteractive();
+    });
+
+    // 3. Character setup
+    character = this.add.image(100, 300, 'character').setDisplaySize(110, 160).setInteractive();
+    this.input.setDraggable(character);
+    character.setData('startX', 100);
+    character.setData('startY', 300);
+
+    // 4. UI
+    scoreText = this.add.text(20, 20, '進度: 0/10', { fontSize: '28px', fill: '#000', fontWeight: 'bold' });
+
+    // 5. Drag Events
+    this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
+        gameObject.x = dragX;
+        gameObject.y = dragY;
+    });
+
+    this.input.on('dragend', (pointer, gameObject) => {
+        checkDrop(this, gameObject);
+    });
+
+    // Start first round
+    startNewTrial(this);
+}
+
+function startNewTrial(scene) {
+    if (trialCount >= 10) {
+        showCongratulation(scene);
+        return;
+    }
+
+    // Reset character
+    character.x = character.getData('startX');
+    character.y = character.getData('startY');
+    character.setScale(1);
+
+    // Pick target
+    currentTarget = Phaser.Utils.Array.GetRandom(locations);
+    
+    // Play Cantonese Voiceover
+    scene.sound.play(currentTarget.key + '_vo');
+}
+
+function checkDrop(scene, char) {
+    let matched = false;
+    
+    // Calculate distance to target location
+    locations.forEach(loc => {
+        if (loc.key === currentTarget.key) {
+            let distance = Phaser.Math.Distance.Between(char.x, char.y, loc.x, loc.y);
+            if (distance < 100) matched = true;
         }
-    };
+    });
 
-    const game = new Phaser.Game(config);
-    let character;
-
-    function preload() {
-        // Replace this URL with your actual character image link
-        this.load.image('character', 'https://labs.phaser.io/assets/sprites/phaser-dude.png');
-    }
-
-    function create() {
-        const charStartX = screenWidth / 2;
-        const charStartY = screenHeight / 2;
-        const charSize = 100;
-
-        // 1. Create the character
-        character = this.add.image(charStartX, charStartY, 'character');
-        character.setDisplaySize(charSize, charSize);
-
-        // 2. Make it interactive for dragging
-        // 'setInteractive' with 'draggable: true' is the cleanest way for mobile
-        character.setInteractive({ draggable: true, useHandCursor: true });
-
-        // 3. The Drag Logic
-        // This 'drag' event is highly responsive on iPad/iPhone
-        this.input.on('drag', function (pointer, gameObject, dragX, dragY) {
-            gameObject.x = dragX;
-            gameObject.y = dragY;
+    if (matched) {
+        scene.sound.play('correct');
+        trialCount++;
+        scoreText.setText(`進度: ${trialCount}/10`);
+        
+        // Visual success effect
+        scene.tweens.add({
+            targets: char,
+            scale: 1.2,
+            duration: 200,
+            yoyo: true,
+            onComplete: () => {
+                scene.time.delayedCall(800, () => startNewTrial(scene));
+            }
         });
-
-        // 4. Visual Feedback for touch
-        this.input.on('dragstart', function (pointer, gameObject) {
-            gameObject.setTint(0xdddddd); // Darken when touched
-            gameObject.setScale(gameObject.scaleX * 1.1); // Slight "pop" effect
-        });
-
-        this.input.on('dragend', function (pointer, gameObject) {
-            gameObject.clearTint();
-            gameObject.setScale(gameObject.scaleX / 1.1);
+    } else {
+        scene.sound.play('wrong');
+        // Snap back animation
+        scene.tweens.add({
+            targets: char,
+            x: char.getData('startX'),
+            y: char.getData('startY'),
+            duration: 500,
+            ease: 'Back.easeOut'
         });
     }
+}
 
-    function update() {
-        // Game loop logic goes here
-    }
+function showCongratulation(scene) {
+    scene.sound.play('congrats');
+    
+    // Darken background
+    scene.add.rectangle(400, 300, 800, 600, 0x000000, 0.6);
+    
+    // Big congrats text
+    scene.add.text(400, 250, '你好棒呀！', { 
+        fontSize: '80px', 
+        fill: '#FFF', 
+        stroke: '#FFA500', 
+        strokeThickness: 10 
+    }).setOrigin(0.5);
+
+    scene.add.text(400, 350, '練習完成！', { 
+        fontSize: '40px', 
+        fill: '#FFF' 
+    }).setOrigin(0.5);
+    
+    character.setVisible(false);
+}
 </script>
-
 </body>
 </html>
