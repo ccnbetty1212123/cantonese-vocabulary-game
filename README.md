@@ -1,2 +1,2 @@
-# cantonese-vocabulary-game
-A fun Phaser-based game to learn Cantonese vocabular
+# where do I want to go?
+A fun Phaser-based game to learn Cantonese vocabulary
