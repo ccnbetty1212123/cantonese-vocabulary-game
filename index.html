@@ -43,6 +43,10 @@ let character, currentTarget, lastTargetKey, trialCount = 0;
 let scoreText, startScreen, gameStarted = false;
 let locationsAsked = new Set(); 
 
+// DIMENSIONS FOR THE STUDENT (Adjust these if you want it even smaller)
+const CHAR_WIDTH = 50;
+const CHAR_HEIGHT = 72;
+
 function preload() {
     this.load.image('bg', 'assets/bg.jpg'); 
     this.load.image('character', 'assets/student.png');
@@ -58,24 +62,16 @@ function preload() {
 }
 
 function create() {
-    // 1. Background
     let background = this.add.image(450, 300, 'bg');
     let scaleX = 900 / background.width;
     let scaleY = 600 / background.height;
     let scale = Math.max(scaleX, scaleY);
     background.setScale(scale).setAlpha(0.4);
     
-    // 2. Location Cards (Optimized for Large Images)
     locations.forEach(loc => {
         let container = this.add.container(loc.x, loc.y);
-        
-        // Card base
         let cardBase = this.add.rectangle(0, 0, 330, 250, 0xffffff).setStrokeStyle(6, 0xFFA500);
-        
-        // MAXIMIZED Image size
         let img = this.add.image(0, -15, loc.key).setDisplaySize(310, 205);
-        
-        // EVEN SMALLER Text
         let txt = this.add.text(0, 98, loc.text, { 
             fontSize: '22px', color: '#555', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
         }).setOrigin(0.5);
@@ -84,8 +80,11 @@ function create() {
         container.setSize(330, 250).setInteractive();
     });
 
-    // 3. Character (Further Reduced Size)
-    character = this.add.image(450, 300, 'character').setDisplaySize(50, 72).setInteractive();
+    // Character Setup with Forced Dimensions
+    character = this.add.image(450, 300, 'character');
+    character.displayWidth = CHAR_WIDTH;
+    character.displayHeight = CHAR_HEIGHT;
+    character.setInteractive();
     character.setDepth(10); 
     this.input.setDraggable(character);
     
@@ -93,15 +92,12 @@ function create() {
     character.setData('startY', 300);
     character.setVisible(false);
 
-    // 4. Score
     scoreText = this.add.text(450, 30, '進度: 0/10', { 
         fontSize: '28px', fill: '#000', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
     }).setOrigin(0.5).setVisible(false).setDepth(100);
 
-    // 5. Start Screen
     showStartScreen(this);
 
-    // 6. Interaction Logic
     this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
         gameObject.x = dragX;
         gameObject.y = dragY;
@@ -115,7 +111,6 @@ function create() {
 function showStartScreen(scene) {
     startScreen = scene.add.container(450, 300).setDepth(200);
     let overlay = scene.add.rectangle(0, 0, 900, 600, 0x000000, 0.85);
-    
     let remindText = scene.add.text(0, -100, '請將手機橫放進行遊戲\nPlease turn phone horizontally', { 
         fontSize: '36px', fill: '#fff', align: 'center', fontFamily: 'Microsoft JhengHei', lineSpacing: 10
     }).setOrigin(0.5);
@@ -147,11 +142,14 @@ function startNewTrial(scene) {
 
     character.x = character.getData('startX');
     character.y = character.getData('startY');
-    character.setScale(1);
+    
+    // CRITICAL FIX: Use displayWidth/Height instead of setScale(1)
+    character.displayWidth = CHAR_WIDTH;
+    character.displayHeight = CHAR_HEIGHT;
+    
     character.setInteractive();
 
     let available = locations.filter(l => l.key !== lastTargetKey);
-    
     if (trialCount < 4) {
         let unasked = available.filter(l => !locationsAsked.has(l.key));
         if (unasked.length > 0) available = unasked;
@@ -160,19 +158,13 @@ function startNewTrial(scene) {
     currentTarget = Phaser.Utils.Array.GetRandom(available);
     lastTargetKey = currentTarget.key;
     locationsAsked.add(currentTarget.key);
-    
     scene.sound.play(currentTarget.key + '_vo');
 }
 
 function checkDrop(scene, char) {
-    let matched = false;
     let dist = Phaser.Math.Distance.Between(char.x, char.y, currentTarget.x, currentTarget.y);
     
     if (dist < 160) {
-        matched = true;
-    }
-
-    if (matched) {
         char.disableInteractive();
         scene.sound.play('correct');
         trialCount++;
@@ -182,7 +174,8 @@ function checkDrop(scene, char) {
             targets: char,
             x: currentTarget.x,
             y: currentTarget.y,
-            scale: 1.2,
+            displayWidth: CHAR_WIDTH * 1.2, // Animate using explicit dimensions
+            displayHeight: CHAR_HEIGHT * 1.2,
             duration: 200,
             yoyo: true,
             onComplete: () => scene.time.delayedCall(500, () => startNewTrial(scene))
@@ -201,7 +194,7 @@ function checkDrop(scene, char) {
 
 function showCongratulation(scene) {
     scene.sound.play('congrats');
-    let endBG = scene.add.rectangle(450, 300, 900, 600, 0x000000, 0.8).setDepth(150);
+    scene.add.rectangle(450, 300, 900, 600, 0x000000, 0.8).setDepth(150);
     scene.add.text(450, 300, '你好棒呀！\n練習完成！', { 
         fontSize: '72px', fill: '#FFF', align: 'center', fontFamily: 'Microsoft JhengHei',
         stroke: '#FFA500', strokeThickness: 10
