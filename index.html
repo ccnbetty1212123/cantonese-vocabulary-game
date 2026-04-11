@@ -22,8 +22,8 @@ const config = {
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 900,  // Horizontal Width
-        height: 600  // Horizontal Height
+        width: 900,  
+        height: 600  
     },
     backgroundColor: '#87CEEB',
     physics: { default: 'arcade' },
@@ -33,10 +33,10 @@ const config = {
 const game = new Phaser.Game(config);
 
 let locations = [
-    { key: 'school', text: '學校', x: 250, y: 160 },
-    { key: 'classroom', text: '課室', x: 650, y: 160 },
-    { key: 'toilet', text: '廁所', x: 250, y: 440 },
-    { key: 'kitchen', text: '廚房', x: 650, y: 440 }
+    { key: 'school', text: '學校', x: 200, y: 150 },
+    { key: 'classroom', text: '課室', x: 700, y: 150 },
+    { key: 'toilet', text: '廁所', x: 200, y: 450 },
+    { key: 'kitchen', text: '廚房', x: 700, y: 450 }
 ];
 
 let character, currentTarget, lastTargetKey, trialCount = 0;
@@ -44,7 +44,6 @@ let scoreText, startScreen, gameStarted = false;
 let locationsAsked = new Set(); 
 
 function preload() {
-    // Assets
     this.load.image('bg', 'assets/bg.jpg'); 
     this.load.image('character', 'assets/student.png');
 
@@ -59,38 +58,48 @@ function preload() {
 }
 
 function create() {
-    // 1. Background (Scaled to cover horizontal screen)
+    // 1. Background
     let background = this.add.image(450, 300, 'bg');
     let scaleX = 900 / background.width;
     let scaleY = 600 / background.height;
     let scale = Math.max(scaleX, scaleY);
-    background.setScale(scale).setAlpha(0.5);
+    background.setScale(scale).setAlpha(0.4);
     
-    // 2. Location Cards
+    // 2. Location Cards (Enlarged)
     locations.forEach(loc => {
         let container = this.add.container(loc.x, loc.y);
-        let cardBase = this.add.rectangle(0, 0, 280, 210, 0xffffff).setStrokeStyle(6, 0xFFA500);
-        let img = this.add.image(0, -15, loc.key).setDisplaySize(260, 160);
-        let txt = this.add.text(0, 80, loc.text, { 
-            fontSize: '38px', color: '#333', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
+        
+        // Larger card base
+        let cardBase = this.add.rectangle(0, 0, 320, 240, 0xffffff).setStrokeStyle(6, 0xFFA500);
+        
+        // Larger image
+        let img = this.add.image(0, -20, loc.key).setDisplaySize(300, 190);
+        
+        // Smaller text
+        let txt = this.add.text(0, 90, loc.text, { 
+            fontSize: '28px', color: '#333', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
         }).setOrigin(0.5);
+        
         container.add([cardBase, img, txt]);
-        container.setSize(280, 210).setInteractive();
+        container.setSize(320, 240).setInteractive();
     });
 
-    // 3. Character
-    character = this.add.image(80, 300, 'character').setDisplaySize(90, 130).setInteractive();
+    // 3. Character (Centered and 1/3 smaller: 90x130 -> 60x87)
+    character = this.add.image(450, 300, 'character').setDisplaySize(60, 87).setInteractive();
+    character.setDepth(10); // Ensure character stays above cards
     this.input.setDraggable(character);
-    character.setData('startX', 80);
+    
+    // Set start position to center
+    character.setData('startX', 450);
     character.setData('startY', 300);
     character.setVisible(false);
 
     // 4. Score
-    scoreText = this.add.text(450, 30, '進度: 0/10', { 
+    scoreText = this.add.text(450, 35, '進度: 0/10', { 
         fontSize: '32px', fill: '#000', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
-    }).setOrigin(0.5).setVisible(false);
+    }).setOrigin(0.5).setVisible(false).setDepth(100);
 
-    // 5. Start / Rotation Screen
+    // 5. Start Screen
     showStartScreen(this);
 
     // 6. Drag Logic
@@ -105,14 +114,13 @@ function create() {
 }
 
 function showStartScreen(scene) {
-    startScreen = scene.add.container(450, 300);
+    startScreen = scene.add.container(450, 300).setDepth(200);
     let overlay = scene.add.rectangle(0, 0, 900, 600, 0x000000, 0.85);
     
     let remindText = scene.add.text(0, -100, '請將手機橫放進行遊戲\nPlease turn phone horizontally', { 
         fontSize: '36px', fill: '#fff', align: 'center', fontFamily: 'Microsoft JhengHei', lineSpacing: 10
     }).setOrigin(0.5);
 
-    // Start Button
     let btnBG = scene.add.rectangle(0, 80, 220, 90, 0xFFA500).setInteractive().setStrokeStyle(4, 0xffffff);
     let btnText = scene.add.text(0, 80, '開始', { 
         fontSize: '44px', fill: '#fff', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
@@ -121,6 +129,9 @@ function showStartScreen(scene) {
     startScreen.add([overlay, remindText, btnBG, btnText]);
 
     btnBG.on('pointerdown', () => {
+        if (scene.sound.context.state === 'suspended') {
+            scene.sound.context.resume();
+        }
         startScreen.destroy();
         gameStarted = true;
         character.setVisible(true);
@@ -138,11 +149,10 @@ function startNewTrial(scene) {
     character.x = character.getData('startX');
     character.y = character.getData('startY');
     character.setScale(1);
+    character.setInteractive();
 
-    // Logic: No repeat twice consecutively & ensure all 4 are used
     let available = locations.filter(l => l.key !== lastTargetKey);
     
-    // During first 4 trials, force unique locations
     if (trialCount < 4) {
         let unasked = available.filter(l => !locationsAsked.has(l.key));
         if (unasked.length > 0) available = unasked;
@@ -157,37 +167,47 @@ function startNewTrial(scene) {
 
 function checkDrop(scene, char) {
     let matched = false;
-    locations.forEach(loc => {
-        if (loc.key === currentTarget.key) {
-            let dist = Phaser.Math.Distance.Between(char.x, char.y, loc.x, loc.y);
-            if (dist < 150) matched = true;
-        }
-    });
+    // Check distance to the specific target location
+    let dist = Phaser.Math.Distance.Between(char.x, char.y, currentTarget.x, currentTarget.y);
+    
+    if (dist < 150) {
+        matched = true;
+    }
 
     if (matched) {
+        char.disableInteractive();
         scene.sound.play('correct');
         trialCount++;
         scoreText.setText(`進度: ${trialCount}/10`);
+        
         scene.tweens.add({
-            targets: char, scale: 1.2, duration: 200, yoyo: true,
+            targets: char,
+            x: currentTarget.x,
+            y: currentTarget.y,
+            scale: 1.2,
+            duration: 200,
+            yoyo: true,
             onComplete: () => scene.time.delayedCall(500, () => startNewTrial(scene))
         });
     } else {
         scene.sound.play('wrong');
         scene.tweens.add({
-            targets: char, x: char.getData('startX'), y: char.getData('startY'),
-            duration: 500, ease: 'Back.easeOut'
+            targets: char,
+            x: char.getData('startX'),
+            y: char.getData('startY'),
+            duration: 500,
+            ease: 'Back.easeOut'
         });
     }
 }
 
 function showCongratulation(scene) {
     scene.sound.play('congrats');
-    scene.add.rectangle(450, 300, 900, 600, 0x000000, 0.8);
+    let endBG = scene.add.rectangle(450, 300, 900, 600, 0x000000, 0.8).setDepth(150);
     scene.add.text(450, 300, '你好棒呀！\n練習完成！', { 
         fontSize: '72px', fill: '#FFF', align: 'center', fontFamily: 'Microsoft JhengHei',
         stroke: '#FFA500', strokeThickness: 10
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(151);
     character.setVisible(false);
 }
 </script>
