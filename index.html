@@ -43,9 +43,10 @@ let character, currentTarget, lastTargetKey, trialCount = 0;
 let scoreText, startScreen, gameStarted = false;
 let locationsAsked = new Set(); 
 
-// DIMENSIONS FOR THE STUDENT (Adjust these if you want it even smaller)
-const CHAR_WIDTH = 50;
-const CHAR_HEIGHT = 72;
+// ADJUST THESE TWO NUMBERS TO CHANGE CHARACTER SIZE
+// 100x144 is a comfortable medium size for mobile
+const CHAR_WIDTH = 100;
+const CHAR_HEIGHT = 144;
 
 function preload() {
     this.load.image('bg', 'assets/bg.jpg'); 
@@ -80,7 +81,7 @@ function create() {
         container.setSize(330, 250).setInteractive();
     });
 
-    // Character Setup with Forced Dimensions
+    // Initialize Character
     character = this.add.image(450, 300, 'character');
     character.displayWidth = CHAR_WIDTH;
     character.displayHeight = CHAR_HEIGHT;
@@ -143,7 +144,7 @@ function startNewTrial(scene) {
     character.x = character.getData('startX');
     character.y = character.getData('startY');
     
-    // CRITICAL FIX: Use displayWidth/Height instead of setScale(1)
+    // Maintain size across trials
     character.displayWidth = CHAR_WIDTH;
     character.displayHeight = CHAR_HEIGHT;
     
@@ -174,8 +175,8 @@ function checkDrop(scene, char) {
             targets: char,
             x: currentTarget.x,
             y: currentTarget.y,
-            displayWidth: CHAR_WIDTH * 1.2, // Animate using explicit dimensions
-            displayHeight: CHAR_HEIGHT * 1.2,
+            displayWidth: CHAR_WIDTH * 1.15, // Subtle pop effect
+            displayHeight: CHAR_HEIGHT * 1.15,
             duration: 200,
             yoyo: true,
             onComplete: () => scene.time.delayedCall(500, () => startNewTrial(scene))
