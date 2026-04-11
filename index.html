@@ -65,44 +65,43 @@ function create() {
     let scale = Math.max(scaleX, scaleY);
     background.setScale(scale).setAlpha(0.4);
     
-    // 2. Location Cards (Enlarged)
+    // 2. Location Cards (Optimized for Large Images)
     locations.forEach(loc => {
         let container = this.add.container(loc.x, loc.y);
         
-        // Larger card base
-        let cardBase = this.add.rectangle(0, 0, 320, 240, 0xffffff).setStrokeStyle(6, 0xFFA500);
+        // Card base
+        let cardBase = this.add.rectangle(0, 0, 330, 250, 0xffffff).setStrokeStyle(6, 0xFFA500);
         
-        // Larger image
-        let img = this.add.image(0, -20, loc.key).setDisplaySize(300, 190);
+        // MAXIMIZED Image size
+        let img = this.add.image(0, -15, loc.key).setDisplaySize(310, 205);
         
-        // Smaller text
-        let txt = this.add.text(0, 90, loc.text, { 
-            fontSize: '28px', color: '#333', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
+        // EVEN SMALLER Text
+        let txt = this.add.text(0, 98, loc.text, { 
+            fontSize: '22px', color: '#555', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
         }).setOrigin(0.5);
         
         container.add([cardBase, img, txt]);
-        container.setSize(320, 240).setInteractive();
+        container.setSize(330, 250).setInteractive();
     });
 
-    // 3. Character (Centered and 1/3 smaller: 90x130 -> 60x87)
-    character = this.add.image(450, 300, 'character').setDisplaySize(60, 87).setInteractive();
-    character.setDepth(10); // Ensure character stays above cards
+    // 3. Character (Further Reduced Size)
+    character = this.add.image(450, 300, 'character').setDisplaySize(50, 72).setInteractive();
+    character.setDepth(10); 
     this.input.setDraggable(character);
     
-    // Set start position to center
     character.setData('startX', 450);
     character.setData('startY', 300);
     character.setVisible(false);
 
     // 4. Score
-    scoreText = this.add.text(450, 35, '進度: 0/10', { 
-        fontSize: '32px', fill: '#000', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
+    scoreText = this.add.text(450, 30, '進度: 0/10', { 
+        fontSize: '28px', fill: '#000', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
     }).setOrigin(0.5).setVisible(false).setDepth(100);
 
     // 5. Start Screen
     showStartScreen(this);
 
-    // 6. Drag Logic
+    // 6. Interaction Logic
     this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
         gameObject.x = dragX;
         gameObject.y = dragY;
@@ -167,10 +166,9 @@ function startNewTrial(scene) {
 
 function checkDrop(scene, char) {
     let matched = false;
-    // Check distance to the specific target location
     let dist = Phaser.Math.Distance.Between(char.x, char.y, currentTarget.x, currentTarget.y);
     
-    if (dist < 150) {
+    if (dist < 160) {
         matched = true;
     }
 
