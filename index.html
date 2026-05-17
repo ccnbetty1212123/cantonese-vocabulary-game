@@ -2,16 +2,28 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>我要去哪兒？</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body { 
-            margin: 0; padding: 0; background-color: #000; 
-            display: flex; justify-content: center; align-items: center; 
-            height: 100vh; overflow: hidden; 
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            width: 100%;
+            height: 100svh; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
         }
-        canvas { box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 10px; }
+        canvas {
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 10px;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
     </style>
 </head>
 <body>
@@ -22,8 +34,8 @@ const config = {
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 810,  // Reduced from 900 to fit browser toolbars safely
-        height: 540  // Reduced from 600 to fit browser toolbars safely
+        width: 810,  
+        height: 540  
     },
     backgroundColor: '#87CEEB',
     physics: { default: 'arcade' },
@@ -32,24 +44,23 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-// Repositioned coordinates for the 810x540 safe canvas space
+// Layout: Top row is pushed down to y:165 to clear Safari's top bar.
+// 'kitchen' has been completely changed to 'tuckshop' (小賣部).
 let locations = [
-    { key: 'school', text: '學校', x: 165, y: 140 },
-    { key: 'classroom', text: '課室', x: 405, y: 140 },
-    { key: 'playground', text: '操場', x: 645, y: 140 },
+    { key: 'school', text: '學校', x: 165, y: 165 },
+    { key: 'classroom', text: '課室', x: 405, y: 165 },
+    { key: 'playground', text: '操場', x: 645, y: 165 },
     { key: 'toilet', text: '廁所', x: 165, y: 410 },
-    { key: 'kitchen', text: '廚房', x: 645, y: 410 }
+    { key: 'tuckshop', text: '小賣部', x: 645, y: 410 }
 ];
 
 let character, currentTarget, lastTargetKey, trialCount = 0;
 let scoreText, startScreen, gameStarted = false;
 let locationsAsked = new Set(); 
 
-// Adjusted character size slightly for the smaller dimensions
 const CHAR_WIDTH = 90;
 const CHAR_HEIGHT = 130;
 
-// New safe center-bottom spawn point
 const SPAWN_X = 405;
 const SPAWN_Y = 410;
 
@@ -68,24 +79,22 @@ function preload() {
 }
 
 function create() {
-    // 810 / 2 = 405, 540 / 2 = 270
     let background = this.add.image(405, 270, 'bg');
     let scaleX = 810 / background.width;
     let scaleY = 540 / background.height;
     let scale = Math.max(scaleX, scaleY);
     background.setScale(scale).setAlpha(0.4);
     
-    // Sized down slightly (220x210) so the bottom text stays safely away from screen margins
     locations.forEach(loc => {
         let container = this.add.container(loc.x, loc.y);
-        let cardBase = this.add.rectangle(0, 0, 220, 210, 0xffffff).setStrokeStyle(5, 0xFFA500);
-        let img = this.add.image(0, -15, loc.key).setDisplaySize(206, 160);
-        let txt = this.add.text(0, 82, loc.text, { 
+        let cardBase = this.add.rectangle(0, 0, 215, 190, 0xffffff).setStrokeStyle(5, 0xFFA500);
+        let img = this.add.image(0, -12, loc.key).setDisplaySize(201, 140);
+        let txt = this.add.text(0, 72, loc.text, { 
             fontSize: '20px', color: '#555', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
         }).setOrigin(0.5);
         
         container.add([cardBase, img, txt]);
-        container.setSize(220, 210).setInteractive();
+        container.setSize(215, 190).setInteractive();
     });
 
     // Initialize Character
@@ -100,8 +109,8 @@ function create() {
     character.setData('startY', SPAWN_Y);
     character.setVisible(false);
 
-    // Shifted down slightly to 28px Y-axis so Safari's upper toolbar won't block it
-    scoreText = this.add.text(405, 28, '進度: 0/10', { 
+    // Progress text padded safely downward to Y: 75
+    scoreText = this.add.text(405, 75, '進度: 0/10', { 
         fontSize: '26px', fill: '#000', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
     }).setOrigin(0.5).setVisible(false).setDepth(100);
 
@@ -172,7 +181,6 @@ function startNewTrial(scene) {
 function checkDrop(scene, char) {
     let dist = Phaser.Math.Distance.Between(char.x, char.y, currentTarget.x, currentTarget.y);
     
-    // Snapping radius adjusted for slightly smaller card spacing
     if (dist < 120) {
         char.disableInteractive();
         scene.sound.play('correct');
