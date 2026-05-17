@@ -55,7 +55,7 @@ let locations = [
 let character, currentTarget, lastTargetKey, trialCount = 0;
 let scoreText, startScreen, gameStarted = false;
 let locationsAsked = new Set(); 
-let audioBtn; // Global variable for the replay button wrapper
+let audioBtn; 
 
 const CHAR_WIDTH = 90;
 const CHAR_HEIGHT = 130;
@@ -113,29 +113,30 @@ function create() {
         fontSize: '26px', fill: '#000', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
     }).setOrigin(0.5).setVisible(false).setDepth(100);
 
-    // Dynamic UI Playback Button Vector Construction (Safe Area layout)
-    audioBtn = this.add.container(645, 75).setVisible(false).setDepth(100);
-    let btnBg = this.add.circle(0, 0, 26, 0xFFA500).setStrokeStyle(3, 0xffffff).setInteractive();
+    // Relocated below '課室' (x: 405, y: 295) with a clean Speaker Emoji interface
+    audioBtn = this.add.container(405, 295).setVisible(false).setDepth(100);
     
-    // Build geometric speaker icon
-    let speakerBase = this.add.rectangle(-6, 0, 10, 12, 0xffffff);
-    let speakerBell = this.add.triangle(2, 0, 0, 6, 0, -6, 10, 0, 0xffffff);
-    let wave1 = this.add.arc(6, 0, 10, -45, 45, false, 0xffffff).setStrokeStyle(3, 0xffffff);
-    let wave2 = this.add.arc(6, 0, 16, -40, 40, false, 0xffffff).setStrokeStyle(3, 0xffffff);
+    // Transparent circular hitting zone for robust toddler touchscreen response
+    let btnBg = this.add.circle(0, 0, 32, 0xffffff, 0).setInteractive();
     
-    audioBtn.add([btnBg, speakerBase, speakerBell, wave1, wave2]);
-    audioBtn.setSize(52, 52);
+    // Large, clear speaker emoji asset text
+    let emojiText = this.add.text(0, 0, '🔊', { 
+        fontSize: '44px' 
+    }).setOrigin(0.5);
+    
+    audioBtn.add([btnBg, emojiText]);
+    audioBtn.setSize(64, 64);
 
     // Interaction handler for playback button
     btnBg.on('pointerdown', () => {
         if (currentTarget && gameStarted && trialCount < 10) {
             this.sound.play(currentTarget.key + '_vo');
             
-            // Toddler-friendly button pop feedback animation
+            // Squeeze pop feedback animation for toddler clarity
             this.tweens.add({
                 targets: audioBtn,
-                scaleX: 1.15,
-                scaleY: 1.15,
+                scaleX: 1.2,
+                scaleY: 1.2,
                 duration: 100,
                 yoyo: true,
                 ease: 'Quad.easeInOut'
@@ -177,7 +178,7 @@ function showStartScreen(scene) {
         gameStarted = true;
         character.setVisible(true);
         scoreText.setVisible(true);
-        audioBtn.setVisible(true); // Reveal the speaker when play starts
+        audioBtn.setVisible(true); // Reveal the speaker emoji when play starts
         startNewTrial(scene);
     });
 }
