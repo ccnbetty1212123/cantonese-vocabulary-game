@@ -44,8 +44,6 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-// Layout: Top row is pushed down to y:165 to clear Safari's top bar.
-// 'kitchen' has been completely changed to 'tuckshop' (小賣部).
 let locations = [
     { key: 'school', text: '學校', x: 165, y: 165 },
     { key: 'classroom', text: '課室', x: 405, y: 165 },
@@ -57,6 +55,7 @@ let locations = [
 let character, currentTarget, lastTargetKey, trialCount = 0;
 let scoreText, startScreen, gameStarted = false;
 let locationsAsked = new Set(); 
+let audioBtn; // Global variable for the replay button wrapper
 
 const CHAR_WIDTH = 90;
 const CHAR_HEIGHT = 130;
@@ -109,10 +108,40 @@ function create() {
     character.setData('startY', SPAWN_Y);
     character.setVisible(false);
 
-    // Progress text padded safely downward to Y: 75
+    // Progress text padded safely downward
     scoreText = this.add.text(405, 75, '進度: 0/10', { 
         fontSize: '26px', fill: '#000', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
     }).setOrigin(0.5).setVisible(false).setDepth(100);
+
+    // Dynamic UI Playback Button Vector Construction (Safe Area layout)
+    audioBtn = this.add.container(645, 75).setVisible(false).setDepth(100);
+    let btnBg = this.add.circle(0, 0, 26, 0xFFA500).setStrokeStyle(3, 0xffffff).setInteractive();
+    
+    // Build geometric speaker icon
+    let speakerBase = this.add.rectangle(-6, 0, 10, 12, 0xffffff);
+    let speakerBell = this.add.triangle(2, 0, 0, 6, 0, -6, 10, 0, 0xffffff);
+    let wave1 = this.add.arc(6, 0, 10, -45, 45, false, 0xffffff).setStrokeStyle(3, 0xffffff);
+    let wave2 = this.add.arc(6, 0, 16, -40, 40, false, 0xffffff).setStrokeStyle(3, 0xffffff);
+    
+    audioBtn.add([btnBg, speakerBase, speakerBell, wave1, wave2]);
+    audioBtn.setSize(52, 52);
+
+    // Interaction handler for playback button
+    btnBg.on('pointerdown', () => {
+        if (currentTarget && gameStarted && trialCount < 10) {
+            this.sound.play(currentTarget.key + '_vo');
+            
+            // Toddler-friendly button pop feedback animation
+            this.tweens.add({
+                targets: audioBtn,
+                scaleX: 1.15,
+                scaleY: 1.15,
+                duration: 100,
+                yoyo: true,
+                ease: 'Quad.easeInOut'
+            });
+        }
+    });
 
     showStartScreen(this);
 
@@ -148,6 +177,7 @@ function showStartScreen(scene) {
         gameStarted = true;
         character.setVisible(true);
         scoreText.setVisible(true);
+        audioBtn.setVisible(true); // Reveal the speaker when play starts
         startNewTrial(scene);
     });
 }
@@ -211,6 +241,7 @@ function checkDrop(scene, char) {
 
 function showCongratulation(scene) {
     scene.sound.play('congrats');
+    audioBtn.setVisible(false); // Hide playback at end screen
     scene.add.rectangle(405, 270, 810, 540, 0x000000, 0.8).setDepth(150);
     scene.add.text(405, 270, '練習完成！\n欣賞你的努力！', { 
         fontSize: '64px', fill: '#FFF', align: 'center', fontFamily: 'Microsoft JhengHei',
