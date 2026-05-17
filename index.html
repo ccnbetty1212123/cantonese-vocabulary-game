@@ -32,11 +32,13 @@ const config = {
 
 const game = new Phaser.Game(config);
 
+// Repositioned to support 5 cards elegantly on a 900x600 canvas
 let locations = [
-    { key: 'school', text: '學校', x: 200, y: 150 },
-    { key: 'classroom', text: '課室', x: 700, y: 150 },
-    { key: 'toilet', text: '廁所', x: 200, y: 450 },
-    { key: 'kitchen', text: '廚房', x: 700, y: 450 }
+    { key: 'school', text: '學校', x: 180, y: 150 },
+    { key: 'classroom', text: '課室', x: 450, y: 150 },
+    { key: 'playground', text: '操場', x: 720, y: 150 },
+    { key: 'toilet', text: '廁所', x: 180, y: 450 },
+    { key: 'kitchen', text: '廚房', x: 720, y: 450 }
 ];
 
 let character, currentTarget, lastTargetKey, trialCount = 0;
@@ -44,9 +46,12 @@ let scoreText, startScreen, gameStarted = false;
 let locationsAsked = new Set(); 
 
 // ADJUST THESE TWO NUMBERS TO CHANGE CHARACTER SIZE
-// 100x144 is a comfortable medium size for mobile
 const CHAR_WIDTH = 100;
 const CHAR_HEIGHT = 144;
+
+// Character spawn position (bottom-middle gap in the layout)
+const SPAWN_X = 450;
+const SPAWN_Y = 450;
 
 function preload() {
     this.load.image('bg', 'assets/bg.jpg'); 
@@ -69,31 +74,32 @@ function create() {
     let scale = Math.max(scaleX, scaleY);
     background.setScale(scale).setAlpha(0.4);
     
+    // Cards slightly narrowed to 250px wide to fit 3 per row comfortably
     locations.forEach(loc => {
         let container = this.add.container(loc.x, loc.y);
-        let cardBase = this.add.rectangle(0, 0, 330, 250, 0xffffff).setStrokeStyle(6, 0xFFA500);
-        let img = this.add.image(0, -15, loc.key).setDisplaySize(310, 205);
-        let txt = this.add.text(0, 98, loc.text, { 
+        let cardBase = this.add.rectangle(0, 0, 250, 240, 0xffffff).setStrokeStyle(6, 0xFFA500);
+        let img = this.add.image(0, -15, loc.key).setDisplaySize(234, 190);
+        let txt = this.add.text(0, 95, loc.text, { 
             fontSize: '22px', color: '#555', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
         }).setOrigin(0.5);
         
         container.add([cardBase, img, txt]);
-        container.setSize(330, 250).setInteractive();
+        container.setSize(250, 240).setInteractive();
     });
 
-    // Initialize Character
-    character = this.add.image(450, 300, 'character');
+    // Initialize Character at the new bottom middle spawn location
+    character = this.add.image(SPAWN_X, SPAWN_Y, 'character');
     character.displayWidth = CHAR_WIDTH;
     character.displayHeight = CHAR_HEIGHT;
     character.setInteractive();
     character.setDepth(10); 
     this.input.setDraggable(character);
     
-    character.setData('startX', 450);
-    character.setData('startY', 300);
+    character.setData('startX', SPAWN_X);
+    character.setData('startY', SPAWN_Y);
     character.setVisible(false);
 
-    scoreText = this.add.text(450, 30, '進度: 0/10', { 
+    scoreText = this.add.text(450, 25, '進度: 0/10', { 
         fontSize: '28px', fill: '#000', fontWeight: 'bold', fontFamily: 'Microsoft JhengHei'
     }).setOrigin(0.5).setVisible(false).setDepth(100);
 
@@ -144,14 +150,13 @@ function startNewTrial(scene) {
     character.x = character.getData('startX');
     character.y = character.getData('startY');
     
-    // Maintain size across trials
     character.displayWidth = CHAR_WIDTH;
     character.displayHeight = CHAR_HEIGHT;
     
     character.setInteractive();
 
     let available = locations.filter(l => l.key !== lastTargetKey);
-    if (trialCount < 4) {
+    if (trialCount < 5) { // Updated to 5 to match the number of assets
         let unasked = available.filter(l => !locationsAsked.has(l.key));
         if (unasked.length > 0) available = unasked;
     }
@@ -165,7 +170,8 @@ function startNewTrial(scene) {
 function checkDrop(scene, char) {
     let dist = Phaser.Math.Distance.Between(char.x, char.y, currentTarget.x, currentTarget.y);
     
-    if (dist < 160) {
+    // Snapping distance threshold adjusted slightly for the smaller cards
+    if (dist < 140) {
         char.disableInteractive();
         scene.sound.play('correct');
         trialCount++;
@@ -175,7 +181,7 @@ function checkDrop(scene, char) {
             targets: char,
             x: currentTarget.x,
             y: currentTarget.y,
-            displayWidth: CHAR_WIDTH * 1.15, // Subtle pop effect
+            displayWidth: CHAR_WIDTH * 1.15, 
             displayHeight: CHAR_HEIGHT * 1.15,
             duration: 200,
             yoyo: true,
